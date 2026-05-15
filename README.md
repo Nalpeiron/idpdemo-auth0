@@ -102,7 +102,7 @@ The script:
 - creates or updates a native Auth0 application
 - configures the fixed callback URL `idpdemo://callback`
 - creates or updates an Auth0 API whose identifier is the Zentitle2 `ProductId`
-- creates or updates a database connection and enables it for the native application
+- creates or updates a database connection and enables it for the native application through Auth0's dedicated connection client endpoint
 - creates or updates an Auth0 role used to gate the entitlement group claim
 - creates, deploys, and binds a post-login Action that adds the required claims to the token
 - updates `appsettings.Development.json`

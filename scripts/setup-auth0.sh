@@ -131,30 +131,6 @@ request_json() {
 	rm -f "${response_file}"
 }
 
-append_unique_client() {
-	local json="$1"
-	local client_id="$2"
-	jq --arg client_id "${client_id}" '
-		.enabled_clients = (((.enabled_clients // []) + [$client_id]) | unique)
-	' <<<"${json}"
-}
-
-connection_has_client_enabled() {
-	local connection_id="$1"
-	local client_id="$2"
-	local enabled_clients
-
-	enabled_clients="$(api_request GET "/api/v2/connections/${connection_id}/clients")"
-	jq -e --arg client_id "${client_id}" '
-		(.clients // .)[] |
-		if type == "string" then
-			select(. == $client_id)
-		else
-			select(.client_id == $client_id and ((.status // true) == true or (.status // "true") == "true"))
-		end
-	' <<<"${enabled_clients}" >/dev/null
-}
-
 create_or_update_action() {
 	local existing_action_id="$1"
 	local create_payload="$2"
@@ -357,14 +333,13 @@ fi
 echo "Ensuring database connection exists and is enabled for the native application..."
 
 EXISTING_CONNECTION="$(
-	api_request GET "/api/v2/connections?strategy=auth0&fields=id,name,enabled_clients&include_fields=true" \
+	api_request GET "/api/v2/connections?strategy=auth0&fields=id,name&include_fields=true" \
 	| jq -c --arg name "${CONNECTION_NAME}" '[.[] | select(.name == $name)] | first'
 )"
 
 if [[ "${EXISTING_CONNECTION}" == "null" ]]; then
 	CONNECTION_PAYLOAD="$(jq -n \
 		--arg name "${CONNECTION_NAME}" \
-		--arg client_id "${CLIENT_ID}" \
 		'{
 			name: $name,
 			strategy: "auth0",
@@ -372,16 +347,13 @@ if [[ "${EXISTING_CONNECTION}" == "null" ]]; then
 				passwordPolicy: "good",
 				disable_signup: false,
 				requires_username: false
-			},
-			enabled_clients: [$client_id]
+			}
 		}')"
 	EXISTING_CONNECTION="$(api_request POST "/api/v2/connections" "${CONNECTION_PAYLOAD}")"
-else
-	CONNECTION_ID="$(jq -r '.id' <<<"${EXISTING_CONNECTION}")"
-	if ! connection_has_client_enabled "${CONNECTION_ID}" "${CLIENT_ID}"; then
-		api_request PATCH "/api/v2/connections/${CONNECTION_ID}/clients" "$(jq -n --arg client_id "${CLIENT_ID}" '[{ client_id: $client_id, status: true }]')" >/dev/null
-	fi
 fi
+
+CONNECTION_ID="$(jq -r '.id' <<<"${EXISTING_CONNECTION}")"
+api_request PATCH "/api/v2/connections/${CONNECTION_ID}/clients" "$(jq -n --arg client_id "${CLIENT_ID}" '[{ client_id: $client_id, status: true }]')" >/dev/null
 
 echo "Ensuring role exists..."
 
