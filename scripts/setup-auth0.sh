@@ -167,7 +167,6 @@ Create it in Auth0 Dashboard:
 Then authorize it for "Auth0 Management API" with scopes that cover:
   read:clients create:clients update:clients
   read:connections create:connections update:connections
-  read:resource_servers create:resource_servers update:resource_servers
   read:roles create:roles
   read:actions create:actions update:actions
 
@@ -204,9 +203,9 @@ CONNECTION_NAME="$(prompt "Database connection name to use/create" "Username-Pas
 CLAIM_NAMESPACE="$(prompt "Namespace for custom claims" "https://idpdemo.example.com/auth0")"
 PRODUCT_ID="$(
 	if [[ -n "${CURRENT_PRODUCT_ID}" ]]; then
-		prompt "Zentitle2 product ID (also used as Auth0 API audience)" "${CURRENT_PRODUCT_ID}"
+		prompt "Zentitle2 product ID" "${CURRENT_PRODUCT_ID}"
 	else
-		prompt "Zentitle2 product ID (also used as Auth0 API audience)"
+		prompt "Zentitle2 product ID"
 	fi
 )"
 ENTITLEMENT_GROUP_ID="$(prompt "Zentitle2 entitlementGroupId")"
@@ -289,45 +288,6 @@ if [[ "${EXISTING_CLIENT}" != "null" ]]; then
 	api_request PATCH "/api/v2/clients/${CLIENT_ID}" "${CLIENT_PAYLOAD}" >/dev/null
 else
 	CLIENT_ID="$(api_request POST "/api/v2/clients" "${CLIENT_PAYLOAD}" | jq -r '.client_id')"
-fi
-
-echo "Ensuring Auth0 API exists for the Zentitle2 product audience..."
-
-RESOURCE_SERVER_NAME="Zentitle2 Product ${PRODUCT_ID}"
-EXISTING_RESOURCE_SERVER="$(
-	api_request GET "/api/v2/resource-servers?fields=id,name,identifier&include_fields=true" \
-	| jq -c --arg identifier "${PRODUCT_ID}" '[.[] | select(.identifier == $identifier)] | first'
-)"
-
-RESOURCE_SERVER_CREATE_PAYLOAD="$(jq -n \
-	--arg name "${RESOURCE_SERVER_NAME}" \
-	--arg identifier "${PRODUCT_ID}" \
-	'{
-		name: $name,
-		identifier: $identifier,
-		signing_alg: "RS256",
-		allow_offline_access: true,
-		skip_consent_for_verifiable_first_party_clients: true,
-		token_dialect: "access_token"
-	}')"
-
-RESOURCE_SERVER_UPDATE_PAYLOAD="$(jq -n \
-	--arg name "${RESOURCE_SERVER_NAME}" \
-	'{
-		name: $name,
-		signing_alg: "RS256",
-		allow_offline_access: true,
-		skip_consent_for_verifiable_first_party_clients: true,
-		token_dialect: "access_token"
-	}')"
-
-if [[ "${EXISTING_RESOURCE_SERVER}" == "null" ]]; then
-	RESOURCE_SERVER_ID="$(
-		api_request POST "/api/v2/resource-servers" "${RESOURCE_SERVER_CREATE_PAYLOAD}" | jq -r '.id'
-	)"
-else
-	RESOURCE_SERVER_ID="$(jq -r '.id' <<<"${EXISTING_RESOURCE_SERVER}")"
-	api_request PATCH "/api/v2/resource-servers/${RESOURCE_SERVER_ID}" "${RESOURCE_SERVER_UPDATE_PAYLOAD}" >/dev/null
 fi
 
 echo "Ensuring database connection exists and is enabled for the native application..."
@@ -519,7 +479,6 @@ Auth0 provisioning complete.
 
 Created or updated:
   Native application client id: ${CLIENT_ID}
-  Auth0 API audience: ${PRODUCT_ID}
   Database connection: ${CONNECTION_NAME}
   Role: ${ROLE_NAME}
   Post-login Action: ${ACTION_NAME}
@@ -542,5 +501,5 @@ Additional profile claims added to the access token when available:
 Next steps:
   1. Assign the Auth0 role "${ROLE_NAME}" to each user who should receive entitlement group ${ENTITLEMENT_GROUP_ID}.
   2. Rebuild and run the MAUI app so the packaged appsettings.Development.json is refreshed.
-  3. Click Login in the app. The access token should now include aud=${PRODUCT_ID} and the entitlement group claim.
+  3. Click Login in the app. The identity token should now include the entitlement group claim.
 EOF

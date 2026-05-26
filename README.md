@@ -2,12 +2,11 @@
 
 This repository is a customer-facing sample that shows how to integrate Auth0 with Zentitle2 Account-Based Licensing in a .NET MAUI application.
 
-The sample signs a user in with Auth0, requests an access token for a Zentitle2 product audience, and then uses that token to activate a seat through the Zentitle2 Licensing Client. After login, the app displays the authenticated user details, the relevant token claims, and the activation summary returned by Zentitle2.
+The sample signs a user in with Auth0 and uses the returned OpenID token to activate a seat through the Zentitle2 Licensing Client. After login, the app displays the authenticated user details, the relevant token claims, and the activation summary returned by Zentitle2.
 
 ## What This Sample Demonstrates
 
 - Auth0 login in a native .NET MAUI application
-- Auth0 access token issuance for a Zentitle2 product audience
 - Token claim mapping for Zentitle2 Account-Based Licensing
 - Seat activation with `openIdToken` credentials
 - A repeatable Auth0 setup flow using the included script
@@ -15,12 +14,11 @@ The sample signs a user in with Auth0, requests an access token for a Zentitle2 
 ## Integration Flow
 
 1. The user signs in through Auth0.
-2. The app requests an access token whose audience is the Zentitle2 `ProductId`.
-3. Auth0 returns a token that includes:
+2. Auth0 returns an OpenID token that includes:
    - standard identity claims such as `email` and `sub`
    - the Zentitle2 entitlement group claim `urn:nalpeiron:zentitle2:claims:entitlement_group_ids`
-4. The app passes that token to Zentitle2 to activate the seat.
-5. Zentitle2 validates the token and returns the entitlement/activation details.
+3. The app passes that token to Zentitle2 to activate the seat.
+4. Zentitle2 validates the token and returns the entitlement/activation details.
 
 ## Repository Layout
 
@@ -45,7 +43,6 @@ You will also need an Auth0 bootstrap Machine-to-Machine application that is aut
 
 - `read:clients`, `create:clients`, `update:clients`
 - `read:connections`, `create:connections`, `update:connections`
-- `read:resource_servers`, `create:resource_servers`, `update:resource_servers`
 - `read:roles`, `create:roles`
 - `read:actions`, `create:actions`, `update:actions`
 
@@ -71,7 +68,6 @@ For this sample, the key Zentitle2 setup is:
 Important notes:
 
 - This sample uses `email` as the seat username claim and `sub` as the unique authentication claim because those are stable defaults for Auth0.
-- The app requests an Auth0 audience that exactly matches the Zentitle2 `ProductId`. That match is required.
 - The sample also injects the claim `urn:nalpeiron:zentitle2:claims:entitlement_group_ids` into the Auth0 token when the user has the configured Auth0 role.
 
 ## Step 2: Run the Auth0 Setup Script
@@ -101,7 +97,6 @@ The script:
 
 - creates or updates a native Auth0 application
 - configures the fixed callback URL `idpdemo://callback`
-- creates or updates an Auth0 API whose identifier is the Zentitle2 `ProductId`
 - creates or updates a database connection and enables it for the native application through Auth0's dedicated connection client endpoint
 - creates or updates an Auth0 role used to gate the entitlement group claim
 - creates, deploys, and binds a post-login Action that adds the required claims to the token
@@ -160,15 +155,11 @@ When setup is complete:
 2. Sign in with an Auth0 user that has the required Auth0 role and a matching Zentitle2 OpenID Token account.
 3. The app should display:
    - authenticated user details
-   - the token audience and claims
+   - the token claims
    - the entitlement group claim
    - the Zentitle2 activation summary
 
 ## Troubleshooting
-
-### Auth0 says access is denied for the audience
-
-Make sure the Auth0 API identifier exactly matches the Zentitle2 `ProductId`, then rerun `scripts/setup-auth0.sh`.
 
 ### The app says Auth0 is not configured
 

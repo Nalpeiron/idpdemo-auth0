@@ -17,7 +17,7 @@ public sealed class ZentitleActivationService
 		_loggerFactory = loggerFactory;
 	}
 
-	public Task<ActivationSummary> ActivateAsync(string accessToken, string seatName, CancellationToken cancellationToken = default)
+	public Task<ActivationSummary> ActivateAsync(string openIdToken, string seatName, CancellationToken cancellationToken = default)
 	{
 		return Task.Run(async () =>
 		{
@@ -26,7 +26,7 @@ public sealed class ZentitleActivationService
 			using var activation = CreateActivation();
 			await activation.Initialize();
 			await DeactivateIfNeededAsync(activation);
-			await activation.ActivateWithOpenIdToken(accessToken, seatName, editionId: null);
+			await activation.ActivateWithOpenIdToken(openIdToken, seatName, editionId: null);
 
 			var entitlement = await activation.GetActivationEntitlement();
 			var entitlementExpiryDate = activation.Info.Entitlement?.EntitlementExpiry;

@@ -30,7 +30,7 @@ public partial class MainPage : ContentPage
 	private async void OnLoginClicked(object? sender, EventArgs e)
 	{
 		var activationStarted = false;
-		string? activationAccessToken = null;
+		string? activationToken = null;
 
 		if (_isAuthenticated)
 		{
@@ -51,17 +51,14 @@ public partial class MainPage : ContentPage
 
 		try
 		{
-			var loginResult = await _auth0Client.LoginAsync(new
-			{
-				audience = _appSettings.Zentitle2.ProductId
-			});
+			var loginResult = await _auth0Client.LoginAsync();
 			if (loginResult.IsError)
 			{
 				await DisplayAlertAsync("Login Failed", BuildLoginErrorMessage(loginResult), "OK");
 				return;
 			}
 
-			activationAccessToken = loginResult.AccessToken;
+			activationToken = loginResult.IdentityToken;
 			activationStarted = true;
 
 			var activationSummary = await ActivateSeatAsync(loginResult);
@@ -73,7 +70,7 @@ public partial class MainPage : ContentPage
 			ClearAuthenticatedIdentity(clearActivationDetails: !activationStarted);
 			if (activationStarted)
 			{
-				ShowActivationFailure(ex.Message, activationAccessToken);
+				ShowActivationFailure(ex.Message, activationToken);
 			}
 
 			await DisplayAlertAsync("Login Failed", ex.Message, "OK");
@@ -118,24 +115,28 @@ public partial class MainPage : ContentPage
 	private void UpdateAuthenticatedIdentity(ClaimsPrincipal user, string? accessToken = null, string? identityToken = null)
 	{
 		var name = FindJwtClaim(accessToken, "name")
+			?? FindJwtClaim(identityToken, "name")
 			?? FindClaim(user, "name")
 			?? FindClaim(user, "nickname")
 			?? "Unavailable";
 		var email = FindJwtClaim(accessToken, "email")
+			?? FindJwtClaim(identityToken, "email")
 			?? FindClaim(user, "email")
 			?? "Unavailable";
 		var subject = FindJwtClaim(accessToken, _appSettings.Zentitle2.AuthenticationClaim)
+			?? FindJwtClaim(identityToken, _appSettings.Zentitle2.AuthenticationClaim)
 			?? FindClaim(user, _appSettings.Zentitle2.AuthenticationClaim)
 			?? "Unavailable";
 		var issuer = FindJwtClaim(accessToken, "iss")
-			?? FindClaim(user, "iss")
 			?? FindJwtClaim(identityToken, "iss")
+			?? FindClaim(user, "iss")
 			?? "Unavailable";
-		var audience = FindJwtClaim(accessToken, "aud") ?? "Unavailable";
 		var entitlementGroupId = FindJwtClaim(accessToken, _appSettings.Zentitle2.EntitlementGroupIdClaim)
 			?? FindClaim(user, _appSettings.Zentitle2.EntitlementGroupIdClaim)
+			?? FindJwtClaim(identityToken, _appSettings.Zentitle2.EntitlementGroupIdClaim)
 			?? "Missing";
 		var roles = FindJwtClaim(accessToken, _appSettings.Auth0.RolesClaim)
+			?? FindJwtClaim(identityToken, _appSettings.Auth0.RolesClaim)
 			?? FindClaim(user, _appSettings.Auth0.RolesClaim)
 			?? "No roles claim returned";
 
@@ -143,7 +144,6 @@ public partial class MainPage : ContentPage
 		UserEmailLabel.Text = $"Email: {email}";
 		UserSubjectLabel.Text = $"{_appSettings.Zentitle2.AuthenticationClaim}: {subject}";
 		UserIssuerLabel.Text = $"iss: {issuer}";
-		UserAudienceLabel.Text = $"aud: {audience}";
 		EntitlementGroupLabel.Text = $"{_appSettings.Zentitle2.EntitlementGroupIdClaim}: {entitlementGroupId}";
 		RolesLabel.Text = $"{_appSettings.Auth0.RolesClaim}: {roles}";
 		Grid.SetColumn(ActivationSummaryCard, 1);
@@ -159,7 +159,6 @@ public partial class MainPage : ContentPage
 		UserEmailLabel.Text = string.Empty;
 		UserSubjectLabel.Text = string.Empty;
 		UserIssuerLabel.Text = string.Empty;
-		UserAudienceLabel.Text = string.Empty;
 		EntitlementGroupLabel.Text = string.Empty;
 		RolesLabel.Text = string.Empty;
 		Grid.SetColumn(ActivationSummaryCard, 0);
@@ -181,7 +180,7 @@ public partial class MainPage : ContentPage
 		ActivationSummaryCard.IsVisible = true;
 	}
 
-	private void ShowActivationFailure(string errorMessage, string? accessToken)
+	private void ShowActivationFailure(string errorMessage, string? activationToken)
 	{
 		var details = new List<string>
 		{
@@ -189,9 +188,9 @@ public partial class MainPage : ContentPage
 			ValueOrUnavailable(errorMessage)
 		};
 
-		if (!string.IsNullOrWhiteSpace(accessToken))
+		if (!string.IsNullOrWhiteSpace(activationToken))
 		{
-			details.Add($"Access Token:\n{accessToken}");
+			details.Add($"OpenID Token:\n{activationToken}");
 		}
 
 		ActivationDetailsLabel.Text = string.Join("\n\n", details);
@@ -212,19 +211,19 @@ public partial class MainPage : ContentPage
 
 	private async Task<ActivationSummary> ActivateSeatAsync(LoginResult loginResult)
 	{
-		if (string.IsNullOrWhiteSpace(loginResult.AccessToken))
+		if (string.IsNullOrWhiteSpace(loginResult.IdentityToken))
 		{
-			throw new InvalidOperationException("Auth0 did not return an access token required for Zentitle2 activation.");
+			throw new InvalidOperationException("Auth0 did not return an identity token required for Zentitle2 activation.");
 		}
 
-		ValidateAccessTokenForActivation(loginResult.AccessToken);
+		ValidateTokenForActivation(loginResult.IdentityToken);
 
 		var seatName = FindClaim(loginResult.User, "email")
 			?? FindClaim(loginResult.User, "name")
 			?? FindClaim(loginResult.User, "sub")
 			?? "IdpDemo Seat";
 
-		return await _zentitleActivationService.ActivateAsync(loginResult.AccessToken, seatName);
+		return await _zentitleActivationService.ActivateAsync(loginResult.IdentityToken, seatName);
 	}
 
 	private string BuildLoginErrorMessage(LoginResult loginResult)
@@ -242,27 +241,15 @@ public partial class MainPage : ContentPage
 			details.Add(loginResult.ErrorDescription);
 		}
 
-		if (string.Equals(loginResult.Error, "access_denied", StringComparison.OrdinalIgnoreCase))
-		{
-			details.Add(
-				$"Auth0 rejected audience '{_appSettings.Zentitle2.ProductId}'. Create an Auth0 API/resource server whose identifier exactly matches the product ID, rerun scripts/setup-auth0.sh, then rebuild the app.");
-		}
-
 		return details.Count > 0 ? string.Join("\n\n", details) : "The Auth0 login request failed.";
 	}
 
-	private void ValidateAccessTokenForActivation(string accessToken)
+	private void ValidateTokenForActivation(string token)
 	{
-		if (!JwtClaimHasAnyValue(accessToken, _appSettings.Zentitle2.UsernameClaim))
+		if (!JwtClaimHasAnyValue(token, _appSettings.Zentitle2.UsernameClaim))
 		{
 			throw new InvalidOperationException(
-				$"Auth0 access token is missing username claim '{_appSettings.Zentitle2.UsernameClaim}'. Update the Auth0 post-login Action to add it to the access token.");
-		}
-
-		if (!JwtClaimContains(accessToken, "aud", _appSettings.Zentitle2.ProductId))
-		{
-			throw new InvalidOperationException(
-				$"Auth0 access token aud does not contain product ID '{_appSettings.Zentitle2.ProductId}'. Ensure Auth0 issues an API access token for that audience.");
+				$"Auth0 identity token is missing username claim '{_appSettings.Zentitle2.UsernameClaim}'. Update the Auth0 post-login Action to add it to the identity token.");
 		}
 	}
 
@@ -285,16 +272,6 @@ public partial class MainPage : ContentPage
 			1 => claimValues[0],
 			_ => string.Join(", ", claimValues)
 		};
-	}
-
-	private static bool JwtClaimContains(string? token, string claimName, string expectedValue)
-	{
-		if (string.IsNullOrWhiteSpace(expectedValue))
-		{
-			return false;
-		}
-
-		return FindJwtClaimValues(token, claimName).Any(value => string.Equals(value, expectedValue, StringComparison.Ordinal));
 	}
 
 	private static bool JwtClaimHasAnyValue(string? token, string claimName)

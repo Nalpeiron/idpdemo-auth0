@@ -87,12 +87,6 @@
                                                LineBreakMode="WordWrap"
                                                TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray200}}" />
 
-                                        <Label x:Name="UserAudienceLabel"
-                                               FontSize="18"
-                                               LineHeight="1.35"
-                                               LineBreakMode="WordWrap"
-                                               TextColor="{AppThemeBinding Light={StaticResource Gray500}, Dark={StaticResource Gray200}}" />
-
                                         <Label x:Name="EntitlementGroupLabel"
                                                FontSize="18"
                                                LineHeight="1.35"
