@@ -23,9 +23,10 @@ public sealed class ZentitleActivationService
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			ClearStoredActivation();
+
 			using var activation = CreateActivation();
 			await activation.Initialize();
-			await DeactivateIfNeededAsync(activation);
 			await activation.ActivateWithOpenIdToken(openIdToken, seatName, editionId: null);
 
 			var entitlement = await activation.GetActivationEntitlement();
@@ -73,6 +74,11 @@ public sealed class ZentitleActivationService
 		}, cancellationToken);
 	}
 
+	public bool DeleteStoredActivation()
+	{
+		return ClearStoredActivation();
+	}
+
 	private Activation CreateActivation()
 	{
 		return new Activation(options =>
@@ -90,20 +96,6 @@ public sealed class ZentitleActivationService
 				})
 				.UseLoggerFactory(_loggerFactory);
 		});
-	}
-
-	private static async Task DeactivateIfNeededAsync(IActivation activation)
-	{
-		if (activation.State is Zentitle.Licensing.Client.ActivationState.NotActivated or Zentitle.Licensing.Client.ActivationState.Uninitialized)
-		{
-			return;
-		}
-
-		var result = await activation.Deactivate();
-		if (!result.IsSuccess)
-		{
-			throw new InvalidOperationException(BuildOperationError(result.Error));
-		}
 	}
 
 	private static string BuildDisplayText(
@@ -145,6 +137,18 @@ public sealed class ZentitleActivationService
 	{
 		Directory.CreateDirectory(FileSystem.Current.AppDataDirectory);
 		return Path.Combine(FileSystem.Current.AppDataDirectory, "zentitle-activation.json");
+	}
+
+	private static bool ClearStoredActivation()
+	{
+		var storagePath = GetStoragePath();
+		if (!File.Exists(storagePath))
+		{
+			return false;
+		}
+
+		File.Delete(storagePath);
+		return true;
 	}
 }
 

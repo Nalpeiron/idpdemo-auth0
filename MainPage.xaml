@@ -42,6 +42,14 @@
                                 FontSize="20"
                                 SemanticProperties.Hint="Opens the login flow" />
 
+                        <Button x:Name="DeleteStoredActivationButton"
+                                Text="Delete Stored Activation"
+                                Clicked="OnDeleteStoredActivationClicked"
+                                HorizontalOptions="Fill"
+                                HeightRequest="56"
+                                FontSize="18"
+                                SemanticProperties.Hint="Deletes the locally stored activation without deactivating it on the server" />
+
                         <ActivityIndicator x:Name="LoginActivityIndicator"
                                            IsVisible="False"
                                            IsRunning="False"

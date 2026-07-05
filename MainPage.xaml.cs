@@ -105,9 +105,31 @@ public partial class MainPage : ContentPage
 		}
 	}
 
+	private async void OnDeleteStoredActivationClicked(object? sender, EventArgs e)
+	{
+		try
+		{
+			var deleted = _zentitleActivationService.DeleteStoredActivation();
+			ActivationDetailsLabel.Text = deleted
+				? "Stored activation deleted. The next login will create a new activation."
+				: "No stored activation was found.";
+			ActivationSummaryCard.IsVisible = true;
+
+			await DisplayAlertAsync(
+				"Stored Activation",
+				deleted ? "Stored activation deleted." : "No stored activation was found.",
+				"OK");
+		}
+		catch (Exception ex)
+		{
+			await DisplayAlertAsync("Delete Stored Activation Failed", ex.Message, "OK");
+		}
+	}
+
 	private void SetBusyState(bool isBusy)
 	{
 		LoginButton.IsEnabled = !isBusy;
+		DeleteStoredActivationButton.IsEnabled = !isBusy;
 		LoginActivityIndicator.IsVisible = isBusy;
 		LoginActivityIndicator.IsRunning = isBusy;
 	}
